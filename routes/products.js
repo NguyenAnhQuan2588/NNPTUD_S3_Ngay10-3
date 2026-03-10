@@ -1,80 +1,97 @@
 const express = require('express')
 let router = express.Router()
-let { GenID, GetCateByID } = require('../utils/IDHandler')
 let slugify = require('slugify')
-let {dataProducts,dataCategories} = require('../utils/data')
+let Product = require('../schemas/products')
 
-router.get('/', (req, res) => {
-    let result = dataProducts.filter(
-        function (e) {
-            return !e.isDeleted
-        }
-    )
-    res.send(result)
-})
-router.get('/:id', (req, res) => {//req.params
-    let result = dataProducts.filter(
-        function (e) {
-            return e.id == req.params.id && !e.isDeleted;
-        }
-    )
-    res.send(result)
-})
-
-router.post('/', (req, res) => {
-    let newProducts = {
-        id: GenID(dataProducts),
-        title: req.body.title,
-        slug: slugify(req.body.title, {
-            replacement: '-',
-            lower: false,
-            remove: undefined,
-        }),
-        description: req.body.description,
-        category: GetCateByID(req.body.category, dataCategories),
-        images: req.body.images,
-        creationAt: new Date(Date.now()),
-        updatedAt: new Date(Date.now())
+// GET all products
+router.get('/', async (req, res) => {
+    try {
+        let result = await Product.find({ isDeleted: false }).populate('category');
+        res.send(result)
+    } catch (err) {
+        res.status(500).send(err.message)
     }
-    dataProducts.push(newProducts);
-    res.send(newProducts)
 })
-router.put('/:id', (req, res) => {
-    let getProduct = dataProducts.filter(
-        function (e) {
-            return e.id == req.params.id && !e.isDeleted
-        }
-    )
-    if (getProduct.length > 0) {
-        getProduct = getProduct[0];
-        let keys = Object.keys(req.body);
-        for (const key of keys) {
-            if (getProduct[key]) {
-                getProduct[key] = req.body[key];
-            }
-        }
-        getProduct.updatedAt = new Date(Date.now());
-        res.status(200).send(getProduct)
-    } else {
-        res.status(404).send("id not found")
-    }
 
+// GET one product
+router.get('/:id', async (req, res) => {
+    try {
+        let result = await Product.findOne({ _id: req.params.id, isDeleted: false }).populate('category');
+        if (result) {
+            res.send(result)
+        } else {
+            res.status(404).send("Product not found")
+        }
+    } catch (err) {
+        res.status(500).send(err.message)
+    }
 })
-router.delete('/:id', (req, res) => {
-    let getProduct = dataProducts.filter(
-        function (e) {
-            return e.id == req.params.id && !e.isDeleted
-        }
-    )
-    if (getProduct.length > 0) {
-        getProduct = getProduct[0];
-        getProduct.isDeleted = true;
-        getProduct.updatedAt = new Date(Date.now());
-        res.status(200).send(getProduct)
-    } else {
-        res.status(404).send("id not found")
-    }
 
+// POST create product
+router.post('/', async (req, res) => {
+    try {
+        let newProduct = new Product({
+            title: req.body.title,
+            slug: slugify(req.body.title, {
+                replacement: '-',
+                lower: true,
+                remove: undefined,
+            }),
+            price: req.body.price,
+            description: req.body.description,
+            category: req.body.category, // Assuming ObjectId
+            images: req.body.images
+        })
+        let result = await newProduct.save();
+        res.status(201).send(result)
+    } catch (err) {
+        res.status(400).send(err.message)
+    }
+})
+
+// PUT update product
+router.put('/:id', async (req, res) => {
+    try {
+        let updateData = { ...req.body };
+        if (req.body.title) {
+            updateData.slug = slugify(req.body.title, {
+                replacement: '-',
+                lower: true
+            });
+        }
+
+        let result = await Product.findOneAndUpdate(
+            { _id: req.params.id, isDeleted: false },
+            updateData,
+            { new: true }
+        );
+
+        if (result) {
+            res.status(200).send(result)
+        } else {
+            res.status(404).send("Product not found or already deleted")
+        }
+    } catch (err) {
+        res.status(400).send(err.message)
+    }
+})
+
+// DELETE product (Soft delete)
+router.delete('/:id', async (req, res) => {
+    try {
+        let result = await Product.findOneAndUpdate(
+            { _id: req.params.id, isDeleted: false },
+            { isDeleted: true },
+            { new: true }
+        );
+        if (result) {
+            res.status(200).send({ message: "Product deleted", result })
+        } else {
+            res.status(404).send("Product not found or already deleted")
+        }
+    } catch (err) {
+        res.status(500).send(err.message)
+    }
 })
 
 module.exports = router;

@@ -1,3 +1,4 @@
+require('dotenv').config();
 var createError = require('http-errors');
 var express = require('express');
 var path = require('path');
@@ -6,7 +7,6 @@ var logger = require('morgan');
 let mongoose = require('mongoose')
 
 var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
 
 var app = express();
 
@@ -21,16 +21,19 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', indexRouter);
-app.use('/users', usersRouter);
 app.use('/api/v1/categories', require('./routes/categories'));
 app.use('/api/v1/products', require('./routes/products'));
+app.use('/api/v1/users', require('./routes/users'));
+app.use('/api/v1/roles', require('./routes/roles'));
 
-mongoose.connect('mongodb://localhost:27017/NNPTUD-S3');
+// MongoDB Connection
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/NNPTUD-S3';
+mongoose.connect(MONGODB_URI);
 mongoose.connection.on('connected', function () {
-  console.log("connected");
+  console.log("Connected to MongoDB at " + MONGODB_URI);
 })
 mongoose.connection.on('disconnected', function () {
-  console.log("disconnected");
+  console.log("Disconnected from MongoDB");
 })
 
 // catch 404 and forward to error handler
